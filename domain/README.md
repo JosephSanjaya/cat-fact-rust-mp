@@ -108,17 +108,17 @@ cargo run --bin uniffi-bindgen generate bindings/catfact-ffi/src/catfact.udl --l
 
 3. **Use in Kotlin:**
 ```kotlin
-import uniffi.catfact.*
+import sjy.sample.cat.fact.ffi.CatFactRepository
 
-// Create API client
-val api = CatFactApi()
+// Create Repository client (initializes NDK & platform trust verifiers)
+val repository = CatFactRepository(context)
 
-// Fetch a fact
+// Fetch a fact asynchronously using suspend functions
 try {
-    val fact = api.getRandomFact()
+    val fact = repository.getRandomFact()
     println("Fact: ${fact.fact}")
-} catch (e: ApiException.NetworkError) {
-    println("Network error: ${e.message}")
+} catch (e: Exception) {
+    println("Failed to fetch fact: ${e.message}")
 }
 ```
 
@@ -211,7 +211,7 @@ val config = ApiConfig(
     baseUrl = "https://custom-api.example.com",
     csrfToken = "your-token"
 )
-val api = CatFactApi.withConfig(config)
+val repository = uniffi.catfact.CatFactRepository.withConfig(config)
 ```
 
 ```swift
@@ -220,7 +220,7 @@ let config = ApiConfig(
     baseUrl: "https://custom-api.example.com",
     csrfToken: "your-token"
 )
-let api = try CatFactApi.withConfig(config: config)
+let repository = try CatFactRepository.withConfig(config: config)
 ```
 
 ## 🎯 Performance Optimizations

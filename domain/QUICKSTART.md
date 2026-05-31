@@ -147,27 +147,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### Kotlin (Android) - After generating bindings
 ```kotlin
-import uniffi.catfact.*
+import sjy.sample.cat.fact.ffi.CatFactRepository
 
-val api = CatFactApi()
-try {
-    val fact = api.getRandomFact()
-    println("Fact: ${fact.fact}")
-} catch (e: ApiException.NetworkError) {
-    println("Error: ${e.message}")
+val repository = CatFactRepository(applicationContext)
+
+// Fetch asynchronously using Coroutines
+lifecycleScope.launch {
+    try {
+        val fact = repository.getRandomFact()
+        println("Fact: ${fact.fact}")
+    } catch (e: Exception) {
+        println("Error: ${e.message}")
+    }
 }
 ```
 
 ### Swift (iOS) - After generating bindings
 ```swift
-import catfact
+import Foundation
 
-let api = try CatFactApi()
-do {
-    let fact = try api.getRandomFact()
-    print("Fact: \(fact.fact)")
-} catch let error as ApiError.NetworkError {
-    print("Error: \(error.message)")
+let repository = try! CatFactRepository()
+
+// Fetch asynchronously using Swift Structured Concurrency
+Task {
+    do {
+        let fact = try await repository.getRandomFact()
+        print("Fact: \(fact.fact)")
+    } catch {
+        print("Error: \(error.localizedDescription)")
+    }
 }
 ```
 

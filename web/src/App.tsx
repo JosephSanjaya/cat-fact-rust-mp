@@ -1,9 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { CatFactRepository, CatFact } from './CatFactRepository';
+import React, { useState, useEffect, useRef } from 'react';
+import initWasm, { CatFactRepository } from 'catfact-wasm';
+import wasmUrl from 'catfact-wasm/catfact_wasm_bg.wasm?url';
 import './App.css';
 
+interface CatFact {
+  fact: string;
+  length: number;
+}
+
 export const App: React.FC = () => {
-  const repository = CatFactRepository.getInstance();
+  const repositoryRef = useRef<CatFactRepository | null>(null);
 
   // UI state variables
   const [catFact, setCatFact] = useState<CatFact | null>(null);
@@ -15,9 +21,11 @@ export const App: React.FC = () => {
   useEffect(() => {
     async function init() {
       try {
-        await repository.initialize();
+        await initWasm(wasmUrl);
+        repositoryRef.current = new CatFactRepository();
         setIsWasmReady(true);
       } catch (err) {
+        console.error(err);
         setErrorMessage('Failed to initialize Cat Fact WebAssembly engine.');
       }
     }
@@ -26,18 +34,18 @@ export const App: React.FC = () => {
 
   // API Fetch Function
   const fetchFact = async () => {
-    if (isLoading) return;
+    if (isLoading || !repositoryRef.current) return;
 
     setIsLoading(true);
     setErrorMessage(null);
     triggerTactileFeedback('medium');
 
     try {
-      const fact = await repository.getRandomFact();
-      setCatFact(fact);
+      const fact = await repositoryRef.current.get_random_fact();
+      setCatFact(fact as CatFact);
       triggerTactileFeedback('success');
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Connection Lost');
+      setErrorMessage(err?.toString() || 'Connection Lost');
       setCatFact(null);
       triggerTactileFeedback('error');
     } finally {

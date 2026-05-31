@@ -476,12 +476,12 @@ fileprivate struct FfiConverterString: FfiConverter {
 
 
 
-public protocol CatFactApiProtocol: AnyObject, Sendable {
+public protocol CatFactRepositoryProtocol: AnyObject, Sendable {
     
-    func getRandomFact() throws  -> CatFactData
+    func getRandomFact() async throws  -> CatFactData
     
 }
-open class CatFactApi: CatFactApiProtocol, @unchecked Sendable {
+open class CatFactRepository: CatFactRepositoryProtocol, @unchecked Sendable {
     fileprivate let handle: UInt64
 
     /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
@@ -518,12 +518,12 @@ open class CatFactApi: CatFactApiProtocol, @unchecked Sendable {
     @_documentation(visibility: private)
 #endif
     public func uniffiCloneHandle() -> UInt64 {
-        return try! rustCall { uniffi_catfact_fn_clone_catfactapi(self.handle, $0) }
+        return try! rustCall { uniffi_catfact_fn_clone_catfactrepository(self.handle, $0) }
     }
 public convenience init()throws  {
     let handle =
         try rustCallWithError(FfiConverterTypeApiError_lift) {
-    uniffi_catfact_fn_constructor_catfactapi_new($0
+    uniffi_catfact_fn_constructor_catfactrepository_new($0
     )
 }
     self.init(unsafeFromHandle: handle)
@@ -535,13 +535,13 @@ public convenience init()throws  {
             return
         }
 
-        try! rustCall { uniffi_catfact_fn_free_catfactapi(handle, $0) }
+        try! rustCall { uniffi_catfact_fn_free_catfactrepository(handle, $0) }
     }
 
     
-public static func withConfig(config: ApiConfig)throws  -> CatFactApi  {
-    return try  FfiConverterTypeCatFactApi_lift(try rustCallWithError(FfiConverterTypeApiError_lift) {
-    uniffi_catfact_fn_constructor_catfactapi_with_config(
+public static func withConfig(config: ApiConfig)throws  -> CatFactRepository  {
+    return try  FfiConverterTypeCatFactRepository_lift(try rustCallWithError(FfiConverterTypeApiError_lift) {
+    uniffi_catfact_fn_constructor_catfactrepository_with_config(
         FfiConverterTypeApiConfig_lower(config),$0
     )
 })
@@ -549,12 +549,21 @@ public static func withConfig(config: ApiConfig)throws  -> CatFactApi  {
     
 
     
-open func getRandomFact()throws  -> CatFactData  {
-    return try  FfiConverterTypeCatFactData_lift(try rustCallWithError(FfiConverterTypeApiError_lift) {
-    uniffi_catfact_fn_method_catfactapi_get_random_fact(
-            self.uniffiCloneHandle(),$0
-    )
-})
+open func getRandomFact()async throws  -> CatFactData  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_catfact_fn_method_catfactrepository_get_random_fact(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_catfact_rust_future_poll_rust_buffer,
+            completeFunc: ffi_catfact_rust_future_complete_rust_buffer,
+            freeFunc: ffi_catfact_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeCatFactData_lift,
+            errorHandler: FfiConverterTypeApiError_lift
+        )
 }
     
 
@@ -565,24 +574,24 @@ open func getRandomFact()throws  -> CatFactData  {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeCatFactApi: FfiConverter {
+public struct FfiConverterTypeCatFactRepository: FfiConverter {
     typealias FfiType = UInt64
-    typealias SwiftType = CatFactApi
+    typealias SwiftType = CatFactRepository
 
-    public static func lift(_ handle: UInt64) throws -> CatFactApi {
-        return CatFactApi(unsafeFromHandle: handle)
+    public static func lift(_ handle: UInt64) throws -> CatFactRepository {
+        return CatFactRepository(unsafeFromHandle: handle)
     }
 
-    public static func lower(_ value: CatFactApi) -> UInt64 {
+    public static func lower(_ value: CatFactRepository) -> UInt64 {
         return value.uniffiCloneHandle()
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CatFactApi {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CatFactRepository {
         let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func write(_ value: CatFactApi, into buf: inout [UInt8]) {
+    public static func write(_ value: CatFactRepository, into buf: inout [UInt8]) {
         writeInt(&buf, lower(value))
     }
 }
@@ -591,15 +600,15 @@ public struct FfiConverterTypeCatFactApi: FfiConverter {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeCatFactApi_lift(_ handle: UInt64) throws -> CatFactApi {
-    return try FfiConverterTypeCatFactApi.lift(handle)
+public func FfiConverterTypeCatFactRepository_lift(_ handle: UInt64) throws -> CatFactRepository {
+    return try FfiConverterTypeCatFactRepository.lift(handle)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeCatFactApi_lower(_ value: CatFactApi) -> UInt64 {
-    return FfiConverterTypeCatFactApi.lower(value)
+public func FfiConverterTypeCatFactRepository_lower(_ value: CatFactRepository) -> UInt64 {
+    return FfiConverterTypeCatFactRepository.lower(value)
 }
 
 
@@ -835,6 +844,54 @@ fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
         }
     }
 }
+private let UNIFFI_RUST_FUTURE_POLL_READY: Int8 = 0
+private let UNIFFI_RUST_FUTURE_POLL_WAKE: Int8 = 1
+
+fileprivate let uniffiContinuationHandleMap = UniffiHandleMap<UnsafeContinuation<Int8, Never>>()
+
+fileprivate func uniffiRustCallAsync<F, T>(
+    rustFutureFunc: () -> UInt64,
+    pollFunc: (UInt64, @escaping UniffiRustFutureContinuationCallback, UInt64) -> (),
+    completeFunc: (UInt64, UnsafeMutablePointer<RustCallStatus>) -> F,
+    freeFunc: (UInt64) -> (),
+    liftFunc: (F) throws -> T,
+    errorHandler: ((RustBuffer) throws -> Swift.Error)?
+) async throws -> T {
+    // Make sure to call the ensure init function since future creation doesn't have a
+    // RustCallStatus param, so doesn't use makeRustCall()
+    uniffiEnsureCatfactInitialized()
+    let rustFuture = rustFutureFunc()
+    defer {
+        freeFunc(rustFuture)
+    }
+    var pollResult: Int8;
+    repeat {
+        pollResult = await withUnsafeContinuation {
+            pollFunc(
+                rustFuture,
+                { handle, pollResult in
+                    uniffiFutureContinuationCallback(handle: handle, pollResult: pollResult)
+                },
+                uniffiContinuationHandleMap.insert(obj: $0)
+            )
+        }
+    } while pollResult != UNIFFI_RUST_FUTURE_POLL_READY
+
+    return try liftFunc(makeRustCall(
+        { completeFunc(rustFuture, $0) },
+        errorHandler: errorHandler
+    ))
+}
+
+// Callback handlers for an async calls.  These are invoked by Rust when the future is ready.  They
+// lift the return value or error and resume the suspended function.
+fileprivate func uniffiFutureContinuationCallback(handle: UInt64, pollResult: Int8) {
+    if let continuation = try? uniffiContinuationHandleMap.remove(handle: handle) {
+        continuation.resume(returning: pollResult)
+    } else {
+        print("uniffiFutureContinuationCallback invalid handle")
+    }
+}
 
 private enum InitializationResult {
     case ok
@@ -851,13 +908,13 @@ private let initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
-    if (uniffi_catfact_checksum_method_catfactapi_get_random_fact() != 15552) {
+    if (uniffi_catfact_checksum_method_catfactrepository_get_random_fact() != 5394) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_catfact_checksum_constructor_catfactapi_new() != 17829) {
+    if (uniffi_catfact_checksum_constructor_catfactrepository_new() != 64944) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_catfact_checksum_constructor_catfactapi_with_config() != 34332) {
+    if (uniffi_catfact_checksum_constructor_catfactrepository_with_config() != 57291) {
         return InitializationResult.apiChecksumMismatch
     }
 

@@ -47,8 +47,8 @@ An Android library module dedicated to compiling the Rust FFI crate:
 - **UniFFI Bindings**: Automatically runs `uniffi-bindgen` to generate Kotlin bindings.
 - **Runtime JNA Loading**: Loads `libuniffi_catfact.so` at startup and hooks `rustls-platform-verifier`'s JNI verifier to ensure secure TLS connections under Android.
 
-### 2. Kotlin Repository Wrapper
-`CatFactRepository` handles background threading via `Dispatchers.IO` and maps low-level UniFFI exceptions to native Kotlin exceptions.
+### 2. Native Kotlin Suspend Integration
+The auto-generated Kotlin binding for `CatFactRepository` natively exposes `suspend fun getRandomFact(): CatFactData`. No manual thread dispatch (`withContext(Dispatchers.IO)`) is needed as the shared Rust FFI layer handles background scheduling on its worker threads safely. The delegating Kotlin `CatFactRepository` class solely manages NDK loading and Android TLS context verification.
 
 ---
 
@@ -65,10 +65,10 @@ Since iOS utilizes C-linkable binaries, it links static libraries using Apple's 
   `ios/Frameworks/CatFact.xcframework`
 - **Safe Checksum Patches**: The build script employs an automated Python patching utility to bypass UniFFI contract checksum checks, eliminating metadata signature mismatches at runtime.
 
-### 2. Swift Repository Layer
-Created `CatFactRepository.swift` to abstract the FFI calls:
-- **Structured Concurrency**: Wrapping blocking FFI calls in `Task.detached(priority: .userInitiated)` keeps FFI workloads isolated on background threads, ensuring the Main UI thread never stutters.
-- **Error Mapping**: Mapped low-level UniFFI `ApiError` cases into descriptive native Swift `CatFactError` enums conforming to `LocalizedError`.
+### 2. Native Swift Async/Await Integration
+UniFFI natively generates Swift bindings conforming to Swift structured concurrency. The `CatFactRepository` exposes an `async throws` method:
+`func getRandomFact() async throws -> CatFactData`
+This allows SwiftUI Views to invoke the repository directly within a standard `Task` without manual background thread wrappers.
 
 ---
 
@@ -79,12 +79,12 @@ The service layer leverages DI protocols/traits:
 ```rust
 pub trait HttpClient: Send + Sync { ... }
 ```
-This isolates raw network calls and lets us inject mocked mock clients during unit testing, keeping the core crate 100% testable.
+This isolates raw network calls and lets us inject mocked clients during unit testing, keeping the core crate 100% testable.
 
-### 2. Isolated Thread Pools
-FFI calls block the calling thread during execution. 
-- **Kotlin** wraps FFI calls inside `withContext(Dispatchers.IO)`.
-- **Swift** wraps FFI calls inside a detached background `Task.detached`.
+### 2. Native Asynchronous FFI Scheduling
+Rather than blocking the caller and requiring manual thread handling in Kotlin or Swift, the shared Rust library is fully asynchronous:
+- **Background Execution**: Rust core operations run on a dedicated FFI worker thread pool (`GLOBAL_RUNTIME`), freeing platform main threads from micro-stutters.
+- **Cooperative Cancellation**: When a Kotlin Coroutine or a Swift Task is cancelled, the Rust future is dropped, causing a custom FFI cancellation guard (`AbortOnDrop`) to abort the ongoing HTTP request immediately in Tokio. No redundant platform wrapper adapters are necessary.
 
 ### 3. Platform TLS Verification
 The core uses native certificate trust verification instead of raw certificates:

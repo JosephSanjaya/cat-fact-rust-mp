@@ -39,7 +39,7 @@ Below is a complete, premium-quality React component implementing glassmorphism,
 
 ```tsx
 import React, { useState, useEffect, useRef } from 'react';
-import initWasm, { CatFactWasmApi, CatFact } from 'catfact-wasm';
+import initWasm, { CatFactRepository, CatFact } from 'catfact-wasm';
 
 export const CatFactDisplay: React.FC = () => {
   const [fact, setFact] = useState<string>('');
@@ -48,7 +48,7 @@ export const CatFactDisplay: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   
   // Keep a reference to the API client to avoid re-instantiating
-  const apiRef = useRef<CatFactWasmApi | null>(null);
+  const repositoryRef = useRef<CatFactRepository | null>(null);
 
   useEffect(() => {
     async function setupWasm() {
@@ -56,8 +56,8 @@ export const CatFactDisplay: React.FC = () => {
         // 1. Initialize the WebAssembly module
         await initWasm();
         
-        // 2. Instantiate the API client
-        apiRef.current = new CatFactWasmApi();
+        // 2. Instantiate the repository
+        repositoryRef.current = new CatFactRepository();
         
         // 3. Fetch the first fact
         await fetchFact();
@@ -71,14 +71,14 @@ export const CatFactDisplay: React.FC = () => {
   }, []);
 
   const fetchFact = async () => {
-    if (!apiRef.current) return;
+    if (!repositoryRef.current) return;
     
     setLoading(true);
     setError(null);
     
     try {
       // 3. Invoke the Rust FFI async function
-      const result = (await apiRef.current.get_random_fact()) as CatFact;
+      const result = (await repositoryRef.current.get_random_fact()) as CatFact;
       setFact(result.fact);
       setLength(result.length);
     } catch (err: any) {

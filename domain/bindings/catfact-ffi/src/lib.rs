@@ -6,6 +6,25 @@
 use catfact_core::{CatFactError, CatFactService};
 use catfact_networking::ReqwestHttpClient;
 use std::sync::Arc;
+use std::sync::LazyLock;
+
+static GLOBAL_RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .thread_name("catfact-worker")
+        .enable_all()
+        .build()
+        .expect("Failed to create global Tokio runtime")
+});
+
+/// Guard to abort a task when dropped (for cooperative cancellation)
+struct AbortOnDrop(tokio::task::AbortHandle);
+
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
 
 /// FFI-safe domain model
 #[derive(uniffi::Record)]
@@ -48,19 +67,18 @@ pub struct ApiConfig {
     pub csrf_token: Option<String>,
 }
 
-/// Main API client exposed to foreign languages
+/// Main Repository client exposed to foreign languages
 /// 
 /// Thread-safe and can be shared across multiple threads.
 /// Uses Arc internally for efficient cloning.
 #[derive(uniffi::Object)]
-pub struct CatFactApi {
-    runtime: Arc<tokio::runtime::Runtime>,
+pub struct CatFactRepository {
     service: Arc<CatFactService<ReqwestHttpClient>>,
 }
 
 #[uniffi::export]
-impl CatFactApi {
-    /// Create a new API client with default configuration
+impl CatFactRepository {
+    /// Create a new Repository client with default configuration
     #[uniffi::constructor]
     pub fn new() -> Result<Arc<Self>, ApiError> {
         Self::with_config(ApiConfig {
@@ -69,7 +87,7 @@ impl CatFactApi {
         })
     }
 
-    /// Create a new API client with custom configuration
+    /// Create a new Repository client with custom configuration
     #[uniffi::constructor]
     pub fn with_config(config: ApiConfig) -> Result<Arc<Self>, ApiError> {
         // Initialize platform-specific logging
@@ -90,15 +108,6 @@ impl CatFactApi {
                 .ok();
         }
 
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
-            .thread_name("catfact-worker")
-            .enable_all()
-            .build()
-            .map_err(|e| ApiError::NetworkError {
-                reason: format!("Failed to create runtime: {}", e),
-            })?;
-
         let client = ReqwestHttpClient::new().map_err(|e| ApiError::NetworkError {
             reason: format!("Failed to create HTTP client: {}", e),
         })?;
@@ -110,19 +119,28 @@ impl CatFactApi {
         };
 
         Ok(Arc::new(Self {
-            runtime: Arc::new(runtime),
             service: Arc::new(service),
         }))
     }
 
-    /// Fetch a random cat fact (blocking call for FFI)
-    /// 
-    /// This method blocks the calling thread until the request completes.
-    /// For async usage in Rust, use the core service directly.
-    pub fn get_random_fact(&self) -> Result<CatFactData, ApiError> {
-        let core_fact = self.runtime
-            .block_on(self.service.get_random_fact())
+    /// Fetch a random cat fact asynchronously
+    pub async fn get_random_fact(&self) -> Result<CatFactData, ApiError> {
+        let service = self.service.clone();
+        
+        let handle = GLOBAL_RUNTIME.spawn(async move {
+            service.get_random_fact().await
+        });
+        
+        // Attach cancellation guard
+        let abort_handle = handle.abort_handle();
+        let _abort_on_drop = AbortOnDrop(abort_handle);
+        
+        let core_fact = handle.await
+            .map_err(|e| ApiError::NetworkError {
+                reason: format!("Task execution failed: {}", e),
+            })?
             .map_err(ApiError::from)?;
+            
         Ok(CatFactData {
             fact: core_fact.fact,
             length: core_fact.length as u64,
@@ -151,8 +169,8 @@ mod tests {
 
     #[test]
     fn test_api_creation() {
-        let api = CatFactApi::new();
-        assert!(api.is_ok());
+        let repository = CatFactRepository::new();
+        assert!(repository.is_ok());
     }
 
     #[test]
@@ -162,15 +180,15 @@ mod tests {
             csrf_token: Some("test-token".to_string()),
         };
         
-        let api = CatFactApi::with_config(config);
-        assert!(api.is_ok());
+        let repository = CatFactRepository::with_config(config);
+        assert!(repository.is_ok());
     }
 
-    #[test]
+    #[tokio::test]
     #[ignore] // Requires network access
-    fn test_get_random_fact() {
-        let api = CatFactApi::new().unwrap();
-        let result = api.get_random_fact();
+    async fn test_get_random_fact() {
+        let repository = CatFactRepository::new().unwrap();
+        let result = repository.get_random_fact().await;
         
         assert!(result.is_ok());
         let fact = result.unwrap();

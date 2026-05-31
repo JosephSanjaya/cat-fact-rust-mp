@@ -111,42 +111,66 @@ This separation ensures:
 
 ## Concurrency Model
 
-### Async Runtime
+### Async Runtime & Executor Safety
 
-The FFI layer manages a Tokio runtime:
+The FFI layer uses a global, multi-threaded Tokio runtime to execute background I/O tasks safely across native platform threads:
+
 ```rust
-let runtime = tokio::runtime::Builder::new_multi_thread()
-    .worker_threads(2)
-    .thread_name("catfact-worker")
-    .enable_all()
-    .build()?;
+static GLOBAL_RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .thread_name("catfact-worker")
+        .enable_all()
+        .build()
+        .expect("Failed to create global Tokio runtime")
+});
 ```
 
 **Design decisions:**
-- **2 worker threads**: Sufficient for I/O-bound HTTP requests
-- **Multi-threaded**: Better than single-threaded for mobile
-- **Named threads**: Easier debugging in profilers
+- **Executor Safety**: Bridges the gap between UniFFI's custom async background threads (which lack an active Tokio 1.x reactor) and `reqwest`'s async client, preventing runtime panics.
+- **Worker pool**: Consists of 2 worker threads, optimized for mobile I/O workloads.
+- **Named threads**: Restricts context and aids thread profiling and debugging under native instruments.
 
-### Blocking FFI Bridge
+### Async FFI Bridge with Cooperative Cancellation
 
-FFI calls are synchronous (required by UniFFI):
+FFI calls are natively asynchronous (conforming to UniFFI async futures):
+
 ```rust
-pub fn get_random_fact(&self) -> Result<CatFactData, ApiError> {
-    self.runtime.block_on(self.service.get_random_fact())
-        .map_err(Into::into)
+pub async fn get_random_fact(&self) -> Result<CatFactData, ApiError> {
+    let service = self.service.clone();
+    
+    let handle = GLOBAL_RUNTIME.spawn(async move {
+        service.get_random_fact().await
+    });
+    
+    // Attach cancellation guard
+    let abort_handle = handle.abort_handle();
+    let _abort_on_drop = AbortOnDrop(abort_handle);
+    
+    let core_fact = handle.await
+        .map_err(|e| ApiError::NetworkError {
+            reason: format!("Task execution failed: {}", e),
+        })?
+        .map_err(ApiError::from)?;
+        
+    Ok(CatFactData {
+        fact: core_fact.fact,
+        length: core_fact.length as u64,
+    })
 }
 ```
 
-This bridges async Rust with synchronous foreign languages.
+**Cooperative Cancellation:**
+When a Kotlin Coroutine or a Swift Task is cancelled, the platform FFI Future is dropped. By wrapping the background task's `AbortHandle` in a custom `Drop`-conforming `AbortOnDrop` struct, the underlying network request is instantly aborted inside Tokio, ensuring zero connection leaks.
 
 ## Memory Management
 
 ### Reference Counting
 
 The FFI layer uses `Arc` for thread-safe sharing:
+
 ```rust
-pub struct CatFactApi {
-    runtime: Arc<tokio::runtime::Runtime>,
+pub struct CatFactRepository {
     service: Arc<CatFactService<ReqwestHttpClient>>,
 }
 ```
@@ -198,8 +222,8 @@ Test the FFI boundary:
 ```rust
 #[test]
 fn test_api_creation() {
-    let api = CatFactApi::new();
-    assert!(api.is_ok());
+    let repository = CatFactRepository::new();
+    assert!(repository.is_ok());
 }
 ```
 
@@ -272,20 +296,39 @@ impl<C: HttpClient> CatFactService<C> {
 2. Expose via FFI:
 ```rust
 #[uniffi::export]
-impl CatFactApi {
-    pub fn get_facts_by_length(&self, max_length: u64) 
+impl CatFactRepository {
+    pub async fn get_facts_by_length(&self, max_length: u64) 
         -> Result<Vec<CatFactData>, ApiError> {
-        self.runtime.block_on(
-            self.service.get_facts_by_length(max_length as usize)
-        ).map_err(Into::into)
+        let service = self.service.clone();
+        
+        let handle = GLOBAL_RUNTIME.spawn(async move {
+            service.get_facts_by_length(max_length as usize).await
+        });
+        
+        let abort_handle = handle.abort_handle();
+        let _abort_on_drop = AbortOnDrop(abort_handle);
+        
+        let core_facts = handle.await
+            .map_err(|e| ApiError::NetworkError {
+                reason: format!("Task execution failed: {}", e),
+            })?
+            .map_err(ApiError::from)?;
+            
+        Ok(core_facts.into_iter().map(Into::into).collect())
     }
 }
 ```
 
 3. Update UniFFI definition:
 ```udl
-interface CatFactApi {
+interface CatFactRepository {
     [Throws=ApiError]
+    constructor();
+    
+    [Throws=ApiError, Name=with_config]
+    constructor(ApiConfig config);
+    
+    [Throws=ApiError, Async]
     sequence<CatFactData> get_facts_by_length(u64 max_length);
 };
 ```

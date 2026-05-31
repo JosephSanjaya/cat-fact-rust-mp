@@ -134,12 +134,12 @@ This project showcases a production-ready **cross-platform architecture**:
 
 ### React / JS (Web)
 ```typescript
-import initWasm, { CatFactWasmApi, CatFact } from 'catfact-wasm';
+import initWasm, { CatFactRepository } from 'catfact-wasm';
 
 async function run() {
   await initWasm();
-  const api = new CatFactWasmApi();
-  const result = (await api.get_random_fact()) as CatFact;
+  const repository = new CatFactRepository();
+  const result = await repository.get_random_fact();
   console.log("Fact:", result.fact);
 }
 ```
@@ -152,10 +152,9 @@ val repository = CatFactRepository(applicationContext)
 
 // Fetch asynchronously using Coroutines
 lifecycleScope.launch {
-    repository.getRandomFact().fold(
-        onSuccess = { fact -> println("Meow: ${fact.fact}") },
-        onFailure = { error -> println("Error: ${error.message}") }
-    )
+    runCatching { repository.getRandomFact().fact }
+        .onSuccess { fact -> println("Meow: $fact") }
+        .onFailure { error -> println("Error: ${error.message}") }
 }
 ```
 
@@ -163,7 +162,7 @@ lifecycleScope.launch {
 ```swift
 import Foundation
 
-let repository = CatFactRepository()
+let repository = try! CatFactRepository()
 
 // Fetch asynchronously using Swift Structured Concurrency
 Task {

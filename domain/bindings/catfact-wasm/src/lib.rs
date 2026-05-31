@@ -9,17 +9,17 @@ pub struct CatFactJs {
     pub length: u32,
 }
 
-/// WebAssembly-compatible API client for cat facts
-#[wasm_bindgen]
-pub struct CatFactWasmApi {
+/// WebAssembly-compatible Repository for cat facts
+#[wasm_bindgen(js_name = CatFactRepository)]
+pub struct CatFactWasmRepository {
     service: CatFactService<ReqwestHttpClient>,
 }
 
-#[wasm_bindgen]
-impl CatFactWasmApi {
-    /// Create a new instance of the API client
+#[wasm_bindgen(js_class = CatFactRepository)]
+impl CatFactWasmRepository {
+    /// Create a new instance of the Repository
     #[wasm_bindgen(constructor)]
-    pub fn new() -> Result<CatFactWasmApi, JsValue> {
+    pub fn new() -> Result<CatFactWasmRepository, JsValue> {
         // Automatically route panics to console.error
         console_error_panic_hook::set_once();
         

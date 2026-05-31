@@ -22,14 +22,14 @@ interface ApiError {
     Cancelled();
 };
 
-// Main API interface
-interface CatFactApi {
+// Main Repository interface
+interface CatFactRepository {
     [Throws=ApiError]
     constructor();
     
     [Throws=ApiError, Name=with_config]
     constructor(ApiConfig config);
     
-    [Throws=ApiError]
+    [Throws=ApiError, Async]
     CatFactData get_random_fact();
 };

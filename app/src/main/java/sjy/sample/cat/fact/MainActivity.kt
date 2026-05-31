@@ -18,6 +18,7 @@ import sjy.sample.cat.fact.ffi.CatFactRepository
 import sjy.sample.cat.fact.ui.theme.CatFactTheme
 
 import androidx.compose.material3.ExperimentalMaterial3Api
+import kotlinx.coroutines.Dispatchers
 
 class MainActivity : ComponentActivity() {
     private val repository = CatFactRepository()
@@ -36,11 +37,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun fetchCatFact(onResult: (Result<String>) -> Unit) {
-        lifecycleScope.launch {
-            val result = repository.getRandomFact()
-            onResult(
-                result.map { it.fact }
-            )
+        lifecycleScope.launch(Dispatchers.IO) {
+            val result = runCatching { repository.getRandomFact().fact }
+            onResult(result)
         }
     }
 }

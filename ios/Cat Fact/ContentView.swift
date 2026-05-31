@@ -2,10 +2,10 @@ import SwiftUI
 
 struct ContentView: View {
     // Repository instance
-    private let repository = CatFactRepository()
+    private let repository = try! CatFactRepository()
     
     // UI state variables
-    @State private var catFact: CatFact? = nil
+    @State private var catFact: CatFactData? = nil
     @State private var isLoading = false
     @State private var errorMessage: String? = nil
     
