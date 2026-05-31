@@ -45,3 +45,8 @@ Cargo.lock
 # XCFramework is compiled locally from Rust source, so we exclude it from Git
 /ios/Cat Fact/Frameworks/CatFact.xcframework/
 /ios/Frameworks/
+
+# --- Web & WebAssembly Build ---
+/web/node_modules/
+/web/dist/
+/domain/bindings/catfact-wasm/pkg/
