@@ -1,29 +1,28 @@
-# Cat Fact Multiplatform App (Android & iOS)
+# Cat Fact Multiplatform App (Android, iOS & Web React)
 
-A cross-platform mobile application showcasing clean architecture and **Rust-FFI integration** using UniFFI to share core business logic between native Android (Kotlin/Jetpack Compose) and native iOS (Swift/SwiftUI) projects.
+A cross-platform application showcasing clean architecture and **Rust-FFI integration** using WebAssembly (WASM) and UniFFI to share core business logic between native Android (Kotlin/Jetpack Compose), native iOS (Swift/SwiftUI), and Web React projects.
 
 ```
-                  ┌─────────────────────────────────┐
-                  │        Shared Rust Core         │
-                  │   • Business Logic (crates/core)│
-                  │   • HTTP Reqwest Client (nw/)   │
-                  │   • UniFFI FFI Layer (bindings) │
-                  └─────────────────────────────────┘
-                           /               \
-                          /                 \
-                         ▼                   ▼
-    ┌───────────────────────────┐     ┌───────────────────────────┐
-    │     Android Library       │     │       iOS Framework       │
-    │  • UniFFI Kotlin Bindings │     │  • UniFFI Swift Bindings  │
-    │  • Native SO Linkages     │     │  • XCFramework package    │
-    └───────────────────────────┘     └───────────────────────────┘
-                 │                                 │
-                 ▼                                 ▼
-    ┌───────────────────────────┐     ┌───────────────────────────┐
-    │    Android App (Compose)  │     │     iOS App (SwiftUI)     │
-    │  • Material 3 Aesthetics  │     │  • Glassmorphism Design   │
-    │  • Coroutines State Flow  │     │  • async/await Task Flow  │
-    └───────────────────────────┘     └───────────────────────────┘
+                           ┌───────────────────────────────────┐
+                           │         Shared Rust Core          │
+                           │   • Core business logic (core)    │
+                           │   • Reqwest HTTP Client (nw/)     │
+                           └───────────────────────────────────┘
+                                  /            |            \
+                                 /             |             \
+                                ▼              ▼              ▼
+                    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+                    │ Android Lib  │    │ iOS FFI Lib  │    │ WASM Wrapper │
+                    │ • SO Linkage │    │ • Static Lib │    │ • ES Modules │
+                    │ • Kotlin Bind│    │ • Swift Bind │    │ • Browser JS │
+                    └──────────────┘    └──────────────┘    └──────────────┘
+                           │                   │                   │
+                           ▼                   ▼                   ▼
+                    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+                    │ Android App  │    │   iOS App    │    │  Web App     │
+                    │ • Jetpack    │    │ • SwiftUI    │    │ • React      │
+                    │   Compose    │    │ • Glassmorphic│    │ • Glassmorphic│
+                    └──────────────┘    └──────────────┘    └──────────────┘
 ```
 
 ---
@@ -35,14 +34,19 @@ This project showcases a production-ready **cross-platform architecture**:
 - **🦀 Rust Domain Layer** (`/domain`): Pure business logic written in Rust.
   - Testable service implementations with Dependency Injection.
   - Abstraction traits for the HTTP client layer.
-  - Automatic UniFFI FFI bindings generation.
+  - Automatic UniFFI FFI bindings generation for mobile.
+  - Target-conditional compiled `reqwest` clients optimized for browser single-threaded, non-`Send` environments.
   
+- **🌐 Web React App** (`/domain/bindings/catfact-wasm`):
+  - **WASM Binding Crate** (`/domain/bindings/catfact-wasm`): Exposes simple JS-friendly, Promise-based bindings.
+  - **Build Automation** (`/domain/scripts/build-wasm.sh`): Downloads `wasm-pack` and generates a clean ES module.
+
 - **🤖 Android App** (`/app` and `/rust-ffi`):
   - **Bridge Module** (`/rust-ffi`): Automates Android target builds (`.so`), generates Kotlin FFI code, and manages JNA linkages.
   - **App Module** (`/app`): Elegant Jetpack Compose UI utilizing Material 3, coroutines, and custom loaders.
 
 - **🍏 iOS App** (`/ios`):
-  - **Bridge Pipeline** (`/domain/scripts/build-ios.sh`): Automates multi-arch builds (devices + universal simulator fat binary via `lipo`), generates Swift FFI wrappers, and packages them into a standard `CatFact.xcframework` inside the isolated `/ios/Frameworks/` directory.
+  - **Bridge Pipeline** (`/domain/scripts/build-ios.sh`): Automates multi-arch builds (devices + simulator fat binary), generates Swift FFI wrappers, and packages them into a standard `CatFact.xcframework` inside the `/ios/Frameworks/` directory.
   - **App Target** (`/ios/Cat Fact/`): Premium SwiftUI interface featuring glassmorphic components, animated mesh backgrounds, structured concurrency (`async/await`), and custom haptic feedback (`UIImpactFeedbackGenerator`).
 
 ---
@@ -51,19 +55,42 @@ This project showcases a production-ready **cross-platform architecture**:
 
 ### Shared Prerequisites
 
-1. **Rust toolchain** (1.85+)
+1. **Rust toolchain** (1.96+)
    ```bash
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    ```
-2. **Setup Mobile targets**
-   Ensure both Android and iOS targets are installed:
+2. **Setup Mobile & Web targets**
+   Ensure all target architectures are installed:
    ```bash
    # Android targets
    rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
    
    # iOS targets
    rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
+
+   # WebAssembly target
+   rustup target add wasm32-unknown-unknown
    ```
+
+---
+
+### 🌐 Web (WASM & React) Setup & Run
+
+1. **Build the WASM Package**
+   Run the automated build script inside the `domain` directory:
+   ```bash
+   ./domain/scripts/build-wasm.sh
+   ```
+   This compiles the WASM binary, installs `wasm-pack` if missing, disables `wasm-opt` (bypassing bulk-memory validation errors), and packages the ES module inside `domain/bindings/catfact-wasm/pkg`.
+
+2. **Integrate into React**
+   Link the generated package inside your React `package.json` file:
+   ```json
+   "dependencies": {
+     "catfact-wasm": "file:../path/to/cat-fact/domain/bindings/catfact-wasm/pkg"
+   }
+   ```
+   Follow the details and styling components in the [WASM README](file:///Users/jsanjaya/Projects/learning/rust/cat-fact/domain/bindings/catfact-wasm/README.md) to integrate the premium React component.
 
 ---
 
@@ -94,12 +121,7 @@ This project showcases a production-ready **cross-platform architecture**:
    ```bash
    ./domain/scripts/build-ios.sh
    ```
-   This will:
-   - Compile for iOS device and simulator targets.
-   - Run `lipo` to merge simulator architectures.
-   - Generate FFI Swift bindings and `module.modulemap` headers.
-   - Package them into `/ios/Frameworks/CatFact.xcframework` and copy `catfact.swift` into `/ios/Cat Fact/`.
-   - Automatically safe-patch the UniFFI checksum validations to prevent compiler signature mismatches.
+   This will compile for iOS device and simulator targets, lipo/merge simulator slices, package them into `CatFact.xcframework`, copy Swift bindings, and patch UniFFI checksum validations to prevent signature mismatches.
 
 2. **Build and Run**
    - Open `/ios/Cat Fact.xcodeproj` in **Xcode**.
@@ -109,6 +131,18 @@ This project showcases a production-ready **cross-platform architecture**:
 ---
 
 ## 🔧 Shared Code Usage
+
+### React / JS (Web)
+```typescript
+import initWasm, { CatFactWasmApi, CatFact } from 'catfact-wasm';
+
+async function run() {
+  await initWasm();
+  const api = new CatFactWasmApi();
+  const result = (await api.get_random_fact()) as CatFact;
+  console.log("Fact:", result.fact);
+}
+```
 
 ### Kotlin (Android)
 ```kotlin
@@ -147,12 +181,10 @@ Task {
 ## 🔍 Troubleshooting
 
 ### Stale FFI Checksums (iOS)
-**Error:** `Fatal error: UniFFI API checksum mismatch`
-- **Solution**: The build script [build-ios.sh](file:///Users/jsanjaya/Projects/learning/rust/cat-fact/domain/scripts/build-ios.sh) has an automated patcher that strips these checksum checks. Make sure you run `./domain/scripts/build-ios.sh` and then perform a **Clean Build Folder** (`Cmd + Shift + K`) in Xcode before running the app.
+- **Solution**: Make sure you run `./domain/scripts/build-ios.sh` and perform a **Clean Build Folder** (`Cmd + Shift + K`) in Xcode before running the app.
 
 ### UnsatisfiedLinkError (Android)
-**Error:** `Unable to load library 'uniffi_catfact'`
-- **Solution**: Ensure your NDK paths are correct, and run `./gradlew :rust-ffi:buildRustFFI` to force a complete re-compilation and rebuild of the native assets.
+- **Solution**: Ensure your NDK paths are correct, and run `./gradlew :rust-ffi:buildRustFFI` to force a complete re-compilation.
 
 ---
 

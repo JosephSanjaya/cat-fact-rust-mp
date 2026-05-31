@@ -9,6 +9,17 @@ use std::pin::Pin;
 /// - iOS: URLSession via FFI delegation
 /// - Android: OkHttp via FFI delegation
 /// - Web: fetch API via wasm-bindgen
+#[cfg(target_arch = "wasm32")]
+pub trait HttpClient {
+    /// Perform a GET request and return the response body
+    fn get<'a>(
+        &'a self,
+        url: &'a str,
+        headers: Vec<(&'a str, &'a str)>,
+    ) -> Pin<Box<dyn Future<Output = Result<String, String>> + 'a>>;
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 pub trait HttpClient: Send + Sync {
     /// Perform a GET request and return the response body
     fn get<'a>(
@@ -90,11 +101,22 @@ mod tests {
     }
 
     impl HttpClient for MockHttpClient {
+        #[cfg(not(target_arch = "wasm32"))]
         fn get<'a>(
             &'a self,
             _url: &'a str,
             _headers: Vec<(&'a str, &'a str)>,
         ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + 'a>> {
+            let response = self.response.clone();
+            Box::pin(async move { Ok(response.to_string()) })
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        fn get<'a>(
+            &'a self,
+            _url: &'a str,
+            _headers: Vec<(&'a str, &'a str)>,
+        ) -> Pin<Box<dyn Future<Output = Result<String, String>> + 'a>> {
             let response = self.response.clone();
             Box::pin(async move { Ok(response.to_string()) })
         }

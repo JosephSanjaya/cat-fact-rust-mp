@@ -4,6 +4,7 @@ members = [
     "crates/core",
     "crates/networking",
     "bindings/catfact-ffi",
+    "bindings/catfact-wasm",
 ]
 
 [workspace.package]

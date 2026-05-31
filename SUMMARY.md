@@ -1,8 +1,16 @@
 # Multiplatform Rust Integration Summary
 
-## ✅ Successful Completion of Both Targets
+## ✅ Successful Completion of Mobile & Web Targets
 
-We have successfully integrated your Rust domain layer into both native Android (Kotlin) and native iOS (Swift) applications following **rust-expert and mobile UI best practices**. Here is a summary of what was completed:
+We have successfully integrated your Rust domain layer into native Android (Kotlin), native iOS (Swift), and Web (React/TypeScript via WebAssembly) applications following **rust-expert, mobile UI, and modern web best practices**. Here is a summary of what was completed:
+
+---
+
+## 🌐 WebAssembly (WASM) & React Integration Summary
+- **Created WASM FFI Binding Crate (`catfact-wasm`)**: Exposes a JavaScript-friendly, Promise-based `CatFactWasmApi` with simple serialization support.
+- **Implemented target-conditional compilation**: Refactored the core `HttpClient` and `ReqwestHttpClient` modules to support browser single-threaded, `!Send` runtimes (e.g. standard browser `fetch` engine wrapped by `reqwest`) under `wasm32-unknown-unknown`.
+- **Created automated build script ([build-wasm.sh](file:///Users/jsanjaya/Projects/learning/rust/cat-fact/domain/scripts/build-wasm.sh))**: Downloads and installs `wasm-pack` precompiled binaries on macOS and bundles the ES module under `pkg/` automatically.
+- **Developer Guide & React Code ([README.md](file:///Users/jsanjaya/Projects/learning/rust/cat-fact/domain/bindings/catfact-wasm/README.md))**: Provides a comprehensive component integration implementation featuring dynamic skeleton loaders, glassmorphism designs, and state-machine transitions.
 
 ---
 
@@ -19,7 +27,6 @@ We have successfully integrated your Rust domain layer into both native Android 
   - Compiles for iOS Device (`aarch64-apple-ios`), Apple Silicon Simulator (`aarch64-apple-ios-sim`), and Intel Simulator (`x86_64-apple-ios`).
   - Automatically exports `IPHONEOS_DEPLOYMENT_TARGET=15.0` to resolve `___chkstk_darwin` undefined symbols and linker warnings.
   - Employs `lipo` to merge simulator binaries into a fat static library (`libcatfact.a`).
-  - Sets up C-headers module loading using `module.modulemap`.
   - Packages slices into `/ios/Frameworks/CatFact.xcframework`.
   - Bypasses runtime FFI checksum mismatches automatically via a safe post-generation Python script.
 - **Swift Repository Wrapper**: Implemented `CatFactRepository.swift` using Swift Structured Concurrency (`async/await`) and detached task thread isolation.
@@ -29,32 +36,32 @@ We have successfully integrated your Rust domain layer into both native Android 
 
 ## 🏗️ Multiplatform Architecture
 ```
-                  ┌─────────────────────────────────┐
-                  │        Shared Rust Core         │
-                  │   • Core business logic (core)  │
-                  │   • Reqwest HTTP Client (nw/)   │
-                  │   • UniFFI FFI bindings (ffi)   │
-                  └─────────────────────────────────┘
-                           /               \
-                          /                 \
-                         ▼                   ▼
-    ┌───────────────────────────┐     ┌───────────────────────────┐
-    │     Android Library       │     │       iOS Framework       │
-    │  • UniFFI Kotlin Bindings │     │  • UniFFI Swift Bindings  │
-    │  • Native SO Linkages     │     │  • XCFramework package    │
-    └───────────────────────────┘     └───────────────────────────┘
-                 │                                 │
-                 ▼                                 ▼
-    ┌───────────────────────────┐     ┌───────────────────────────┐
-    │    Android App (Compose)  │     │     iOS App (SwiftUI)     │
-    │  • Material 3 UI Layout   │     │  • Glassmorphism Design   │
-    │  • Coroutines State Flow  │     │  • async/await Task Flow  │
-    └───────────────────────────┘     └───────────────────────────┘
+                           ┌───────────────────────────────────┐
+                           │         Shared Rust Core          │
+                           │   • Core business logic (core)    │
+                           │   • Reqwest HTTP Client (nw/)     │
+                           └───────────────────────────────────┘
+                                  /            |            \
+                                 /             |             \
+                                ▼              ▼              ▼
+                    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+                    │ Android Lib  │    │ iOS FFI Lib  │    │ WASM Wrapper │
+                    │ • SO Linkage │    │ • Static Lib │    │ • ES Modules │
+                    │ • Kotlin Bind│    │ • Swift Bind │    │ • Browser JS │
+                    └──────────────┘    └──────────────┘    └──────────────┘
+                           │                   │                   │
+                           ▼                   ▼                   ▼
+                    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+                    │ Android App  │    │   iOS App    │    │  Web App     │
+                    │ • Jetpack    │    │ • SwiftUI    │    │ • React      │
+                    │   Compose    │    │ • Glassmorphic│    │ • Glassmorphic│
+                    └──────────────┘    └──────────────┘    └──────────────┘
 ```
 
 ---
 
 ## 📂 Verification & Build Results
+- **WASM Target**: Successfully compiled with zero warnings and built into complete JS/TS bundles ready for deployment.
 - **Android Target**: Gradle build syncs, compiles, and runs on Android devices/emulators with secure API responses.
 - **iOS Target**: Clean build succeeded on iOS Simulators:
   ```bash
