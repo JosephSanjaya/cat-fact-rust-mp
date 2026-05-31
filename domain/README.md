@@ -124,35 +124,27 @@ try {
 
 ### iOS
 
-1. **Build XCFramework:**
+1. **Build XCFramework and bindings automatically:**
 ```bash
-# Build for iOS targets
-cargo build --release --target aarch64-apple-ios -p catfact-ffi
-cargo build --release --target aarch64-apple-ios-sim -p catfact-ffi
-cargo build --release --target x86_64-apple-ios -p catfact-ffi
-
-# Create XCFramework (requires xcodebuild)
-# See: https://mozilla.github.io/uniffi-rs/latest/tutorial/foreign_language_bindings.html
+# Execute the automated iOS build pipeline script
+./scripts/build-ios.sh
 ```
+This automatically compiles for all architectures, merges simulator targets using `lipo`, outputs `CatFact.xcframework` under `../ios/Frameworks/`, and generates `catfact.swift` in `../ios/Cat Fact/` with automatic UniFFI checksum bypass patches.
 
-2. **Generate Swift bindings:**
-```bash
-cargo run --bin uniffi-bindgen generate bindings/catfact-ffi/src/catfact.udl --language swift --out-dir ./ios/
-```
-
-3. **Use in Swift:**
+2. **Use in Swift (SwiftUI Repository pattern):**
 ```swift
-import catfact
+import Foundation
 
-// Create API client
-let api = try CatFactApi()
+// Use the isolated Swift repository wrapper with structured concurrency
+let repository = CatFactRepository()
 
-// Fetch a fact
-do {
-    let fact = try api.getRandomFact()
-    print("Fact: \(fact.fact)")
-} catch let error as ApiError.NetworkError {
-    print("Network error: \(error.message)")
+Task {
+    do {
+        let fact = try await repository.getRandomFact()
+        print("Fact: \(fact.fact) (\(fact.length) characters)")
+    } catch {
+        print("Error: \(error.localizedDescription)")
+    }
 }
 ```
 

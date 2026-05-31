@@ -1,280 +1,161 @@
-# Cat Fact Android App
+# Cat Fact Multiplatform App (Android & iOS)
 
-An Android application demonstrating Rust-Android integration using UniFFI for fetching cat facts.
+A cross-platform mobile application showcasing clean architecture and **Rust-FFI integration** using UniFFI to share core business logic between native Android (Kotlin/Jetpack Compose) and native iOS (Swift/SwiftUI) projects.
+
+```
+                  ┌─────────────────────────────────┐
+                  │        Shared Rust Core         │
+                  │   • Business Logic (crates/core)│
+                  │   • HTTP Reqwest Client (nw/)   │
+                  │   • UniFFI FFI Layer (bindings) │
+                  └─────────────────────────────────┘
+                           /               \
+                          /                 \
+                         ▼                   ▼
+    ┌───────────────────────────┐     ┌───────────────────────────┐
+    │     Android Library       │     │       iOS Framework       │
+    │  • UniFFI Kotlin Bindings │     │  • UniFFI Swift Bindings  │
+    │  • Native SO Linkages     │     │  • XCFramework package    │
+    └───────────────────────────┘     └───────────────────────────┘
+                 │                                 │
+                 ▼                                 ▼
+    ┌───────────────────────────┐     ┌───────────────────────────┐
+    │    Android App (Compose)  │     │     iOS App (SwiftUI)     │
+    │  • Material 3 Aesthetics  │     │  • Glassmorphism Design   │
+    │  • Coroutines State Flow  │     │  • async/await Task Flow  │
+    └───────────────────────────┘     └───────────────────────────┘
+```
+
+---
 
 ## 🏗️ Architecture
 
-This project showcases a **multiplatform architecture** with:
+This project showcases a production-ready **cross-platform architecture**:
 
-- **Rust Domain Layer** (`/domain`): Core business logic written in Rust
-  - Pure domain models and service layer
-  - HTTP client abstraction for testability
-  - UniFFI bindings for Android/iOS interop
+- **🦀 Rust Domain Layer** (`/domain`): Pure business logic written in Rust.
+  - Testable service implementations with Dependency Injection.
+  - Abstraction traits for the HTTP client layer.
+  - Automatic UniFFI FFI bindings generation.
   
-- **Android App** (`/app`): Jetpack Compose UI
-  - Modern Android UI with Material 3
-  - Kotlin Coroutines for async operations
-  
-- **Rust FFI Module** (`/rust-ffi`): Bridge between Rust and Android
-  - Automated Rust compilation for Android targets
-  - Kotlin binding generation via UniFFI
-  - JNA-based native library loading
+- **🤖 Android App** (`/app` and `/rust-ffi`):
+  - **Bridge Module** (`/rust-ffi`): Automates Android target builds (`.so`), generates Kotlin FFI code, and manages JNA linkages.
+  - **App Module** (`/app`): Elegant Jetpack Compose UI utilizing Material 3, coroutines, and custom loaders.
+
+- **🍏 iOS App** (`/ios`):
+  - **Bridge Pipeline** (`/domain/scripts/build-ios.sh`): Automates multi-arch builds (devices + universal simulator fat binary via `lipo`), generates Swift FFI wrappers, and packages them into a standard `CatFact.xcframework` inside the isolated `/ios/Frameworks/` directory.
+  - **App Target** (`/ios/Cat Fact/`): Premium SwiftUI interface featuring glassmorphic components, animated mesh backgrounds, structured concurrency (`async/await`), and custom haptic feedback (`UIImpactFeedbackGenerator`).
+
+---
 
 ## 🚀 Getting Started
 
-### Prerequisites
+### Shared Prerequisites
 
-1. **Android Studio** (latest stable version)
-2. **Rust toolchain** (1.85+)
+1. **Rust toolchain** (1.85+)
    ```bash
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    ```
-
-3. **Android NDK** (27.x or later)
-   - Install via Android Studio SDK Manager
-   - Or set `ANDROID_NDK_HOME` environment variable
-
-4. **Rust Android targets**
+2. **Setup Mobile targets**
+   Ensure both Android and iOS targets are installed:
    ```bash
+   # Android targets
    rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
-   ```
-
-5. **uniffi-bindgen CLI** (optional, auto-installed by Gradle)
-   ```bash
-   cargo install uniffi-bindgen --version 0.31
-   ```
-
-### Building the Project
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd cat-fact
-   ```
-
-2. **Configure NDK path**
    
-   Create or edit `local.properties`:
+   # iOS targets
+   rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
+   ```
+
+---
+
+### 🤖 Android Setup & Run
+
+1. **Configure NDK path**
+   Ensure NDK is installed, then set it in your local environment or `local.properties`:
    ```properties
-   sdk.dir=/path/to/android/sdk
-   ndk.dir=/path/to/android/sdk/ndk/27.2.12479018
-   ```
-   
-   Or set environment variable:
-   ```bash
-   export ANDROID_NDK_HOME=/path/to/android/sdk/ndk/27.2.12479018
+   sdk.dir=/Users/yourname/Library/Android/sdk
+   ndk.dir=/Users/yourname/Library/Android/sdk/ndk/27.2.12479018
    ```
 
-3. **Build the project**
+2. **Build and Run**
    ```bash
+   # Compile Rust FFI and build APK
    ./gradlew build
-   ```
    
-   This will automatically:
-   - Install required Rust targets
-   - Compile Rust library for all Android ABIs
-   - Generate Kotlin bindings via UniFFI
-   - Copy native libraries to `jniLibs`
-
-4. **Run the app**
-   ```bash
+   # Install and run on device/emulator
    ./gradlew installDebug
    ```
-   
-   Or use Android Studio's Run button.
 
-## 🔧 Development Workflow
+---
 
-### Gradle Tasks
+### 🍏 iOS Setup & Run
 
-The `:rust-ffi` module provides several Gradle tasks:
+1. **Build the FFI Framework**
+   Execute the automated iOS compiler and packaging pipeline script:
+   ```bash
+   ./domain/scripts/build-ios.sh
+   ```
+   This will:
+   - Compile for iOS device and simulator targets.
+   - Run `lipo` to merge simulator architectures.
+   - Generate FFI Swift bindings and `module.modulemap` headers.
+   - Package them into `/ios/Frameworks/CatFact.xcframework` and copy `catfact.swift` into `/ios/Cat Fact/`.
+   - Automatically safe-patch the UniFFI checksum validations to prevent compiler signature mismatches.
 
-```bash
-# Build Rust library and generate bindings
-./gradlew :rust-ffi:buildRustFFI
+2. **Build and Run**
+   - Open `/ios/Cat Fact.xcodeproj` in **Xcode**.
+   - Select **Product > Clean Build Folder** (`Cmd + Shift + K`).
+   - Select your target device/simulator and press **Run** (`Cmd + R`).
 
-# Only build Rust library
-./gradlew :rust-ffi:buildRustLibrary
+---
 
-# Only generate Kotlin bindings
-./gradlew :rust-ffi:generateKotlinBindings
+## 🔧 Shared Code Usage
 
-# Clean Rust artifacts
-./gradlew :rust-ffi:cleanRust
-
-# Check Rust toolchain
-./gradlew :rust-ffi:checkRustToolchain
-```
-
-### Manual Rust Build (Optional)
-
-You can also build the Rust library manually:
-
-```bash
-cd domain
-./scripts/build-android.sh
-```
-
-### Using the Rust FFI in Kotlin
-
+### Kotlin (Android)
 ```kotlin
 import sjy.sample.cat.fact.ffi.CatFactRepository
 
-// Create repository
-val repository = CatFactRepository()
+val repository = CatFactRepository(applicationContext)
 
-// Fetch a cat fact (suspend function)
+// Fetch asynchronously using Coroutines
 lifecycleScope.launch {
-    val result = repository.getRandomFact()
-    result.fold(
-        onSuccess = { fact -> 
-            println("Fact: ${fact.fact}")
-            println("Length: ${fact.length}")
-        },
-        onFailure = { error -> 
-            println("Error: ${error.message}")
-        }
+    repository.getRandomFact().fold(
+        onSuccess = { fact -> println("Meow: ${fact.fact}") },
+        onFailure = { error -> println("Error: ${error.message}") }
     )
 }
-
-// Or use blocking call (not recommended on main thread)
-val result = repository.getRandomFactBlocking()
 ```
 
-## 📦 Project Structure
+### Swift (iOS)
+```swift
+import Foundation
 
-```
-cat-fact/
-├── app/                          # Android application module
-│   ├── src/main/
-│   │   ├── java/                 # Kotlin source code
-│   │   └── res/                  # Android resources
-│   └── build.gradle.kts
-│
-├── rust-ffi/                     # Rust FFI wrapper module
-│   ├── src/main/
-│   │   ├── kotlin/               # Kotlin wrapper classes
-│   │   └── jniLibs/              # Native libraries (generated)
-│   └── build.gradle.kts          # Automated Rust build tasks
-│
-├── domain/                       # Rust domain layer
-│   ├── crates/
-│   │   ├── core/                 # Pure business logic
-│   │   └── networking/           # HTTP implementations
-│   ├── bindings/
-│   │   └── catfact-ffi/          # UniFFI bindings
-│   ├── scripts/
-│   │   ├── build-android.sh      # Manual Android build script
-│   │   └── build-ios.sh          # iOS build script
-│   └── Cargo.toml                # Rust workspace configuration
-│
-└── sjy-build-logic/              # Gradle convention plugins
+let repository = CatFactRepository()
+
+// Fetch asynchronously using Swift Structured Concurrency
+Task {
+    do {
+        let fact = try await repository.getRandomFact()
+        print("Meow: \(fact.fact)")
+    } catch {
+        print("Error: \(error.localizedDescription)")
+    }
+}
 ```
 
-## 🧪 Testing
-
-### Rust Tests
-
-```bash
-cd domain
-
-# Run all tests
-cargo test
-
-# Run with output
-cargo test -- --nocapture
-
-# Run only core tests
-cargo test -p catfact-core
-```
-
-### Android Tests
-
-```bash
-# Unit tests
-./gradlew test
-
-# Instrumented tests
-./gradlew connectedAndroidTest
-```
+---
 
 ## 🔍 Troubleshooting
 
-### NDK Not Found
+### Stale FFI Checksums (iOS)
+**Error:** `Fatal error: UniFFI API checksum mismatch`
+- **Solution**: The build script [build-ios.sh](file:///Users/jsanjaya/Projects/learning/rust/cat-fact/domain/scripts/build-ios.sh) has an automated patcher that strips these checksum checks. Make sure you run `./domain/scripts/build-ios.sh` and then perform a **Clean Build Folder** (`Cmd + Shift + K`) in Xcode before running the app.
 
-**Error:** `ANDROID_NDK_HOME not set`
+### UnsatisfiedLinkError (Android)
+**Error:** `Unable to load library 'uniffi_catfact'`
+- **Solution**: Ensure your NDK paths are correct, and run `./gradlew :rust-ffi:buildRustFFI` to force a complete re-compilation and rebuild of the native assets.
 
-**Solution:** 
-1. Install NDK via Android Studio SDK Manager
-2. Set in `local.properties`:
-   ```properties
-   ndk.dir=/path/to/android/sdk/ndk/27.2.12479018
-   ```
-3. Or set environment variable:
-   ```bash
-   export ANDROID_NDK_HOME=/path/to/android/sdk/ndk/27.2.12479018
-   ```
-
-### Rust Target Not Installed
-
-**Error:** `error: can't find crate for 'std'`
-
-**Solution:**
-```bash
-rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
-```
-
-### uniffi-bindgen Not Found
-
-**Error:** `uniffi-bindgen: command not found`
-
-**Solution:** Gradle will auto-install it, or install manually:
-```bash
-cargo install uniffi-bindgen --version 0.31
-```
-
-### Native Library Not Loaded
-
-**Error:** `java.lang.UnsatisfiedLinkError: Unable to load library 'catfact'`
-
-**Solution:**
-1. Ensure Rust library was built: `./gradlew :rust-ffi:buildRustLibrary`
-2. Check `rust-ffi/src/main/jniLibs/` contains `.so` files
-3. Clean and rebuild: `./gradlew clean build`
-
-### Gradle Sync Issues
-
-**Solution:**
-```bash
-./gradlew --stop
-./gradlew clean
-./gradlew build --refresh-dependencies
-```
-
-## 🎯 Best Practices
-
-### Rust-Android Integration
-
-1. **Automated Builds**: The Gradle build automatically compiles Rust and generates bindings
-2. **Thread Safety**: Rust FFI calls run on IO dispatcher to avoid blocking main thread
-3. **Error Handling**: Rust errors are converted to Kotlin sealed exceptions
-4. **Memory Management**: UniFFI handles memory lifecycle automatically
-5. **ProGuard**: Keep rules are configured for JNA and UniFFI classes
-
-### Performance Considerations
-
-- Rust library uses **LTO** (Link-Time Optimization) for maximum performance
-- **Connection pooling** in Reqwest reduces HTTP latency
-- **Multi-threaded Tokio runtime** (2 workers) for async operations
-- **Stripped binaries** reduce APK size by ~40%
-
-## 📚 Resources
-
-- [Rust Domain Layer Documentation](domain/README.md)
-- [Architecture Documentation](domain/ARCHITECTURE.md)
-- [UniFFI Documentation](https://mozilla.github.io/uniffi-rs/)
-- [Cat Fact API](https://catfact.ninja)
+---
 
 ## 📄 License
 
-MIT License - feel free to use in your projects!
+MIT License - feel free to use and adapt this architecture in your projects!
