@@ -1,0 +1,35 @@
+namespace catfact {
+};
+
+// Domain model
+dictionary CatFactData {
+    string fact;
+    u64 length;
+};
+
+// Configuration
+dictionary ApiConfig {
+    string? base_url;
+    string? csrf_token;
+};
+
+// Errors
+[Error]
+interface ApiError {
+    NetworkError(string reason);
+    ParseError(string reason);
+    InvalidResponse(string reason);
+    Cancelled();
+};
+
+// Main API interface
+interface CatFactApi {
+    [Throws=ApiError]
+    constructor();
+    
+    [Throws=ApiError, Name=with_config]
+    constructor(ApiConfig config);
+    
+    [Throws=ApiError]
+    CatFactData get_random_fact();
+};

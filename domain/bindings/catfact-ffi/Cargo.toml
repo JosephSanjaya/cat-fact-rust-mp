@@ -1,0 +1,33 @@
+[package]
+name = "catfact-ffi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["lib", "cdylib", "staticlib"]
+name = "catfact"
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/uniffi-bindgen.rs"
+required-features = ["uniffi/cli"]
+
+[dependencies]
+catfact-core = { path = "../../crates/core" }
+catfact-networking = { path = "../../crates/networking" }
+uniffi = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+log = { workspace = true }
+thiserror = { workspace = true }
+
+[build-dependencies]
+uniffi = { workspace = true, features = ["build"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+android_logger = "0.14"
+rustls-platform-verifier = { version = "0.7.0", features = ["jni"] }
+jni = { version = "0.22.4", default-features = false }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+oslog = "0.2"

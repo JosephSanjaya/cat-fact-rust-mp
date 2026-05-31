@@ -1,0 +1,47 @@
+# --- IDEs and OS ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.iml
+.idea/
+.kotlin/
+.gradle/
+
+# --- Android Build & Cache ---
+/local.properties
+local.properties
+/build/
+/captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aar
+*.jar
+
+# --- Rust Build ---
+/domain/target/
+/domain/bindings/catfact-ffi/temp_out/
+Cargo.lock
+
+# --- Xcode & iOS Build ---
+# Ignore Xcode DerivedData and personal settings
+**/DerivedData/
+**/xcuserdata/
+**/project.xcworkspace/
+!**/project.xcworkspace/contents.xcworkspacedata
+**/xcshareddata/
+**/ActiveWorkspaceSettings.plist
+
+# Playback and Build artifacts
+*.moved-aside
+*.xccheckout
+*.xcscmblueprint
+
+# --- Compiled Rust FFI Frameworks ---
+# XCFramework is compiled locally from Rust source, so we exclude it from Git
+/ios/Cat Fact/Frameworks/CatFact.xcframework/
+/ios/Frameworks/

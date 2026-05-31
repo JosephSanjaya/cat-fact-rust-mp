@@ -1,0 +1,52 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/core",
+    "crates/networking",
+    "bindings/catfact-ffi",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"  # Minimum supported Rust version
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1.49", features = ["rt", "sync"] }
+
+# HTTP client
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# FFI bindings
+uniffi = "0.31"
+
+# Logging
+log = "0.4"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "unwind"  # Required for FFI safety
+
+# Example CLI application
+[package]
+name = "catfact-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+catfact-core = { path = "crates/core" }
+catfact-networking = { path = "crates/networking" }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
